@@ -5,6 +5,7 @@ from pathlib import Path
 import datetime
 
 import PySide6
+from PySide6 import QtCore
 from PySide6.QtCore import QByteArray, QDir, QIODevice, QMargins, QRect, Qt, Signal, Slot, QThread, QUrl 
 from PySide6.QtGui import QPainter, QPalette, QIcon
 from PySide6.QtMultimedia import (
@@ -19,6 +20,9 @@ from PySide6.QtMultimedia import (
     QMediaFormat,
 )
 from PySide6.QtWidgets import (
+    QSpinBox,
+    QMenu,
+    QLabel,
     QLineEdit,
     QApplication,
     QComboBox,
@@ -65,7 +69,7 @@ class RenderArea(QWidget):
         self.setAutoFillBackground(True)
         self.setMinimumHeight(30)
         self.setMinimumWidth(200)
-        self.setMaximumHeight(30)
+        self.setMaximumHeight(50)
         # self.setMaximumWidth(200)
 
     def set_level(self, value):
@@ -86,7 +90,6 @@ class RenderArea(QWidget):
             painter.fillRect(
                 frame.left() + 1, frame.top() + 1, pos, frame.height() - 1, Qt.gray
             )
-
 
 
 class DreamerMainWindow(QWidget):
@@ -112,28 +115,24 @@ class DreamerMainWindow(QWidget):
         # button for start pause and resume recording
         self.start_icon = QIcon("resources/start_btn.png")
         self.pause_icon = QIcon("resources/pause_btn.png")
-        # self.m_suspend_resume_button = QPushButton(self)
-        # self.m_suspend_resume_button.setIcon(self.start_icon)
-        # self.m_suspend_resume_button.setMaximumWidth(30)
-        # self.m_suspend_resume_button.clicked.connect(self.toggle_suspend)
-        # self.m_suspend_resume_button.setStyleSheet("background:transparent")
         self.startbutton = QPushButton(self)
-        self.startbutton.setMaximumWidth(30)
+        self.startbutton.setFixedSize(QtCore.QSize(50, 50))
         self.startbutton.setIcon(self.start_icon)
         self.startbutton.setStyleSheet("background:transparent")
 
         self.pausebutton = QPushButton(self)
         self.pausebutton.setIcon(self.pause_icon)
         self.pausebutton.setStyleSheet("background:transparent")
-        self.pausebutton.setMaximumWidth(30)
+        self.pausebutton.setFixedSize(QtCore.QSize(50, 50))
 
         recording_layout = QHBoxLayout()
         recording_layout.addWidget(self.startbutton)
         recording_layout.addWidget(self.pausebutton)
         recording_layout.addWidget(self.m_canvas)
-        self.layout.addLayout(recording_layout)
+        
         
         self.m_device_box = QComboBox(self)
+        self.m_device_box.setMaximumWidth(200)
         default_device_info = QMediaDevices.defaultAudioInput()
         self.m_device_box.addItem(
             default_device_info.description(), default_device_info
@@ -147,10 +146,34 @@ class DreamerMainWindow(QWidget):
         self.layout.addWidget(self.m_device_box)
 
         self.edit = QLineEdit("Waiting for audio input...")
-        
+        generate_hbox = QHBoxLayout()
+        generate_hbox.addStretch(1)
         self.generate_btn = QPushButton()
+        self.generate_btn.setMaximumWidth(100)
+        self.generate_btn.setText("Generate")
+        generate_hbox.addWidget(self.generate_btn)
+
+        language_layout = QHBoxLayout()
+        self.language_label = QLabel("Lanuage:")
+        self.language_label.setMaximumWidth(100)
+        self.language = QComboBox(self)
+        self.language.addItems(["English", "Chinese", "German", "French", "Spanish"])
+        self.language.setMaximumWidth(100)
+        language_layout.addWidget(self.language_label)
+        language_layout.addStretch(0)
+        language_layout.addWidget(self.language)
+
+        self.layout.addLayout(language_layout)
         self.layout.addWidget(self.edit)
 
+        self.layout.addLayout(generate_hbox)
+
+        device_layout = QHBoxLayout()
+        device_layout.addWidget(QLabel("Select input device"))
+        device_layout.addStretch(1)
+        device_layout.addWidget(self.m_device_box)
+        self.layout.addLayout(device_layout)
+        self.layout.addLayout(recording_layout)
 
     def initialize_audio(self, device_info: QAudioDevice):
         self.session = QMediaCaptureSession()
@@ -158,7 +181,7 @@ class DreamerMainWindow(QWidget):
         self.session.setAudioInput(self.audioInput)
         self.recorder = QMediaRecorder()
         self.session.setRecorder(self.recorder)
-        self.recorder.setMediaFormat(QMediaFormat.MP3)
+        self.recorder.setMediaFormat(QMediaFormat.Wave)
         self.recorder.setQuality(QMediaRecorder.HighQuality)
         now = datetime.datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
         fixent = now+"/recording"
@@ -168,13 +191,27 @@ class DreamerMainWindow(QWidget):
         self.recorder.setOutputLocation(url)
         self.recorder.stop()
         self.startbutton.clicked.connect(self.recorder.record)
+        self.startbutton.clicked.connect(self.start_recording)
+
         self.pausebutton.clicked.connect(self.recorder.pause)
+        self.pausebutton.clicked.connect(self.pause_recording)
+        self.pausebutton.setVisible(False)
+
+    
+    @Slot(int)
+    def start_recording(self):
+        self.startbutton.setVisible(False)
+        self.pausebutton.setVisible(True)
+    
+    @Slot(int)
+    def pause_recording(self):
+        self.pausebutton.setVisible(False)
+        self.startbutton.setVisible(True)
         
+
     @Slot(int)
     def device_changed(self, index):
-        self.m_audio_input.stop()
-        self.m_audio_input.disconnect(self)
-        self.initialize_audio(self.m_device_box.itemData(index))
+        self.recorder.stop()
 
     @Slot(int)
     def slider_changed(self, value):
